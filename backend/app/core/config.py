@@ -1,5 +1,5 @@
-from typing import List, Union
-from pydantic import AnyHttpUrl, field_validator
+from typing import List, Union, Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     CHROMA_HOST: str = "localhost"
     CHROMA_PORT: int = 8001
     CHROMA_SSL: bool = False
+    CHROMA_PERSIST_DIRECTORY: str = "./chroma_db_data"
+    CHROMA_COLLECTION_NAME: str = "docdrift_chunks"
+
+    # AI & Embeddings
+    GEMINI_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: Optional[str] = None
+    EMBEDDING_PROVIDER: str = "gemini"  # "gemini", "openai", "local_fallback"
+    EMBEDDING_MODEL: str = "models/text-embedding-004"
 
     @property
     def chroma_base_url(self) -> str:
