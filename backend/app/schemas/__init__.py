@@ -27,6 +27,10 @@ from app.schemas.chat import (
     ChatSessionResponse,
     StreamTokenChunk,
 )
+from app.schemas.vector_payload import (
+    VectorChunkMetadata,
+    VectorFilterQuery,
+)
 
 __all__ = [
     "HealthResponse",
@@ -50,4 +54,6 @@ __all__ = [
     "ChatSessionUpdate",
     "ChatSessionResponse",
     "StreamTokenChunk",
+    "VectorChunkMetadata",
+    "VectorFilterQuery",
 ]
