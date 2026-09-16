@@ -7,12 +7,17 @@ from app.api.router import api_router
 from app.core.config import settings
 from app.core.logging import logger
 from app.core.database import engine
+from app.core.init_db import init_database
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup event
     logger.info(f"Starting {settings.APP_NAME} in {settings.APP_ENV} mode...")
+    try:
+        await init_database()
+    except Exception as e:
+        logger.warning(f"Could not auto-initialize DB tables on startup (PostgreSQL might be offline): {e}")
     yield
     # Shutdown event
     logger.info(f"Shutting down {settings.APP_NAME}...")
