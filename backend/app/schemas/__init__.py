@@ -31,6 +31,11 @@ from app.schemas.vector_payload import (
     VectorChunkMetadata,
     VectorFilterQuery,
 )
+from app.schemas.intent import (
+    QueryIntentEnum,
+    QueryIntentRequest,
+    QueryIntentResponse,
+)
 
 __all__ = [
     "HealthResponse",
@@ -56,4 +61,8 @@ __all__ = [
     "StreamTokenChunk",
     "VectorChunkMetadata",
     "VectorFilterQuery",
+    "QueryIntentEnum",
+    "QueryIntentRequest",
+    "QueryIntentResponse",
 ]
+

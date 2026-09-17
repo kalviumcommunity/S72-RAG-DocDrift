@@ -1,7 +1,12 @@
 import os
 from typing import List, Dict, Any, Optional, Union
-import chromadb
-from chromadb.config import Settings as ChromaSettings
+try:
+    import chromadb
+    from chromadb.config import Settings as ChromaSettings
+except ImportError:
+    chromadb = None
+    ChromaSettings = None
+
 from app.core.config import settings
 from app.core.logging import logger
 from app.services.embedding_service import embedding_service, cosine_similarity
@@ -22,6 +27,10 @@ class VectorStoreService:
 
     def _init_client(self):
         """Initializes ChromaDB client (HTTP or Persistent local storage)."""
+        if chromadb is None:
+            logger.warning("chromadb package is not installed. Vector store operations will be unavailable.")
+            return None
+
         try:
             if settings.CHROMA_HOST and settings.CHROMA_PORT:
                 logger.info(f"Connecting to ChromaDB HTTP Server at {settings.chroma_base_url}...")
@@ -44,10 +53,13 @@ class VectorStoreService:
 
     def _get_or_create_collection(self):
         """Gets or creates the vector collection configured with cosine distance."""
+        if not self.client:
+            return None
         return self.client.get_or_create_collection(
             name=self.collection_name,
             metadata={"hnsw:space": "cosine"}
         )
+
 
     def add_chunks(
         self,
