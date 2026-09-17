@@ -101,7 +101,8 @@ class VectorStoreService:
         doc_type: Optional[Union[str, List[str]]] = None,
         doc_id: Optional[str] = None,
         is_deprecated: Optional[bool] = None,
-        top_k: int = 5
+        top_k: int = 5,
+        score_threshold: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """
         Searches the collection using semantic embedding with flexible metadata filters.
@@ -116,14 +117,16 @@ class VectorStoreService:
         return self.query_by_vector(
             query_vector=query_embedding,
             where_filter=where_filter,
-            top_k=top_k
+            top_k=top_k,
+            score_threshold=score_threshold
         )
 
     def search_with_filter(
         self,
         query_text: str,
         filter_query: Optional[VectorFilterQuery] = None,
-        top_k: int = 5
+        top_k: int = 5,
+        score_threshold: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """
         Searches using a strongly typed VectorFilterQuery model.
@@ -133,14 +136,16 @@ class VectorStoreService:
         return self.query_by_vector(
             query_vector=query_embedding,
             where_filter=where_filter,
-            top_k=top_k
+            top_k=top_k,
+            score_threshold=score_threshold
         )
 
     def query_by_vector(
         self,
         query_vector: List[float],
         where_filter: Optional[Dict[str, Any]] = None,
-        top_k: int = 5
+        top_k: int = 5,
+        score_threshold: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """
         Performs vector similarity search with a pre-built ChromaDB where-filter.
@@ -162,6 +167,9 @@ class VectorStoreService:
                 
                 # Cosine similarity = 1 - cosine distance
                 similarity_score = max(0.0, min(1.0, 1.0 - distance))
+
+                if score_threshold is not None and similarity_score < score_threshold:
+                    continue
 
                 formatted_results.append({
                     "chunk_id": chunk_id,

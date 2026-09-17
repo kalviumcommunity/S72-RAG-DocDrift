@@ -11,7 +11,8 @@ async def search_documents(
     query_string: str = Query(..., description="The search query text"),
     selected_version: Optional[str] = Query(None, description="Filter by API version tag"),
     doc_type: Optional[str] = Query(None, description="Filter by document type (e.g. API_REFERENCE)"),
-    top_k: int = Query(5, ge=1, le=20, description="Number of results to return")
+    top_k: int = Query(5, ge=1, le=20, description="Number of results to return"),
+    score_threshold: Optional[float] = Query(None, description="Minimum similarity score threshold")
 ):
     """
     Search endpoint that retrieves semantically scored document chunks 
@@ -27,7 +28,8 @@ async def search_documents(
             query_text=query_string,
             version_tag=selected_version,
             doc_type=doc_type,
-            top_k=top_k
+            top_k=top_k,
+            score_threshold=score_threshold
         )
         return results
     except Exception as e:
