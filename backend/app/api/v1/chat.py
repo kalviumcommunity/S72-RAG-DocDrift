@@ -2,9 +2,16 @@ from typing import Optional
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from app.schemas.chat import RAGQueryRequest, RAGQueryResponse
+from app.schemas.faithfulness import (
+    ClaimVerificationRequest,
+    ClaimVerificationResult,
+    AnswerFaithfulnessRequest,
+    AnswerFaithfulnessReport,
+)
 from app.services.rag_pipeline import rag_pipeline
 from app.services.query_intent import query_intent_analyzer
 from app.services.vector_store import vector_store
+from app.services.faithfulness_evaluator import faithfulness_evaluator
 from app.core.logging import logger
 
 router = APIRouter(prefix="/chat", tags=["Chat & RAG"])
@@ -84,3 +91,37 @@ async def generate_rag_answer_get(
         top_k=top_k
     )
     return await generate_rag_answer(req)
+
+
+@router.post("/verify-claim", response_model=ClaimVerificationResult)
+async def verify_claim_endpoint(request: ClaimVerificationRequest):
+    """
+    Compares an individual LLM-generated claim against a cited source chunk
+    and returns a faithfulness score (0.0% - 100.0%) with grounding reasoning.
+    """
+    if not request.claim or not request.claim.strip():
+        raise HTTPException(status_code=400, detail="Claim text cannot be empty")
+
+    return await run_in_threadpool(
+        faithfulness_evaluator.verify_claim,
+        claim=request.claim,
+        source_chunk=request.source_chunk,
+        chunk_id=request.chunk_id
+    )
+
+
+@router.post("/verify-answer", response_model=AnswerFaithfulnessReport)
+async def verify_answer_endpoint(request: AnswerFaithfulnessRequest):
+    """
+    Verifies all claims in a complete generated answer against the cited context chunks,
+    returning an aggregate faithfulness percentage score and per-claim audit trail.
+    """
+    if not request.answer or not request.answer.strip():
+        raise HTTPException(status_code=400, detail="Answer text cannot be empty")
+
+    return await run_in_threadpool(
+        faithfulness_evaluator.verify_answer,
+        answer=request.answer,
+        context_chunks=request.context_chunks,
+        threshold=request.threshold
+    )

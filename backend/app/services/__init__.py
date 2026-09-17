@@ -15,6 +15,11 @@ from app.services.rag_pipeline import (
     DocDriftRAGPipeline,
     rag_pipeline,
 )
+from app.services.faithfulness_evaluator import (
+    FaithfulnessEvaluator,
+    faithfulness_evaluator,
+    compute_faithfulness_score,
+)
 
 __all__ = [
     "EmbeddingService",
@@ -30,6 +35,9 @@ __all__ = [
     "query_intent_analyzer",
     "DocDriftRAGPipeline",
     "rag_pipeline",
+    "FaithfulnessEvaluator",
+    "faithfulness_evaluator",
+    "compute_faithfulness_score",
 ]
 
 

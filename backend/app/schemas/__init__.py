@@ -39,6 +39,12 @@ from app.schemas.intent import (
     QueryIntentRequest,
     QueryIntentResponse,
 )
+from app.schemas.faithfulness import (
+    ClaimVerificationRequest,
+    ClaimVerificationResult,
+    AnswerFaithfulnessRequest,
+    AnswerFaithfulnessReport,
+)
 
 __all__ = [
     "HealthResponse",
@@ -69,6 +75,10 @@ __all__ = [
     "QueryIntentResponse",
     "RAGQueryRequest",
     "RAGQueryResponse",
+    "ClaimVerificationRequest",
+    "ClaimVerificationResult",
+    "AnswerFaithfulnessRequest",
+    "AnswerFaithfulnessReport",
 ]
 
 

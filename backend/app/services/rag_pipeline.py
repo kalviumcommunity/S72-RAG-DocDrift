@@ -320,6 +320,10 @@ class DocDriftRAGPipeline:
         citations = self.extract_citations(answer_text, context_chunks)
         grounding_info = self.validate_grounding(answer_text, context_chunks)
 
+        # Compute claim-level faithfulness verification
+        from app.services.faithfulness_evaluator import faithfulness_evaluator
+        faithfulness_report = faithfulness_evaluator.verify_answer(answer_text, context_chunks)
+
         return RAGQueryResponse(
             query=query,
             answer=answer_text,
@@ -329,8 +333,11 @@ class DocDriftRAGPipeline:
                 "selected_version": selected_version,
                 "is_comparison": is_comparison,
                 "chunks_count": len(context_chunks),
+                "claims_count": faithfulness_report.total_claims,
+                "faithful_claims_count": faithfulness_report.faithful_claims_count,
             },
             is_grounded=grounding_info["is_grounded"],
+            faithfulness_score=faithfulness_report.overall_score,
             pipeline_mode=pipeline_mode
         )
 
