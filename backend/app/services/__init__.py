@@ -7,6 +7,10 @@ from app.services.vector_filter import (
     build_version_diff_filter,
     normalize_version_tag,
 )
+from app.services.query_intent import (
+    QueryIntentAnalyzer,
+    query_intent_analyzer,
+)
 
 __all__ = [
     "EmbeddingService",
@@ -18,4 +22,7 @@ __all__ = [
     "build_composite_filter",
     "build_version_diff_filter",
     "normalize_version_tag",
+    "QueryIntentAnalyzer",
+    "query_intent_analyzer",
 ]
+

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import health, documents, workspaces, search
+from app.api.v1 import health, documents, workspaces, search, intent
 
 api_router = APIRouter()
 
@@ -8,3 +8,5 @@ api_router.include_router(health.router)
 api_router.include_router(documents.router)
 api_router.include_router(workspaces.router)
 api_router.include_router(search.router)
+api_router.include_router(intent.router)
+
