@@ -26,8 +26,17 @@ class Settings(BaseSettings):
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",") if i.strip()]
-        elif isinstance(v, (list, str)):
-            return v
+        elif isinstance(v, list):
+            return [str(i) for i in v]
+        elif isinstance(v, str):
+            import json
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return [str(i) for i in parsed]
+            except Exception:
+                pass
+            return [v.strip()]
         raise ValueError(v)
 
     # Database

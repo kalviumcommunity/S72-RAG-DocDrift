@@ -46,6 +46,12 @@ from app.schemas.faithfulness import (
     AnswerFaithfulnessReport,
 )
 
+from app.schemas.maintenance import (
+    DeleteChunksResult,
+    BatchInsertResult,
+    DocumentZeroDowntimeUpdateResult,
+)
+
 __all__ = [
     "HealthResponse",
     "ServiceStatus",
@@ -79,6 +85,9 @@ __all__ = [
     "ClaimVerificationResult",
     "AnswerFaithfulnessRequest",
     "AnswerFaithfulnessReport",
+    "DeleteChunksResult",
+    "BatchInsertResult",
+    "DocumentZeroDowntimeUpdateResult",
 ]
 
 

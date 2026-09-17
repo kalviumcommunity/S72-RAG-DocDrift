@@ -86,8 +86,8 @@ class QueryIntentAnalyzer:
         self._gemini_client = None
         if self.gemini_api_key and genai:
             try:
-                genai.configure(api_key=self.gemini_api_key)
-                self._gemini_client = genai.GenerativeModel("gemini-1.5-flash")
+                getattr(genai, "configure")(api_key=self.gemini_api_key)
+                self._gemini_client = getattr(genai, "GenerativeModel")("gemini-1.5-flash")
                 logger.info("QueryIntentAnalyzer initialized with Gemini LLM.")
             except Exception as e:
                 logger.warning(f"Failed to initialize Gemini LLM client: {e}")
@@ -336,7 +336,8 @@ class QueryIntentAnalyzer:
                     ],
                     response_format={"type": "json_object"}
                 )
-                data = json.loads(completion.choices[0].message.content)
+                raw_text = completion.choices[0].message.content or "{}"
+                data = json.loads(raw_text)
                 return QueryIntentResponse(
                     query=query,
                     is_comparison=bool(data.get("is_comparison", False)),
