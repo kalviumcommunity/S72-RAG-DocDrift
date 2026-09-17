@@ -21,6 +21,14 @@ from app.services.faithfulness_evaluator import (
     compute_faithfulness_score,
 )
 
+from app.services.vector_maintenance import (
+    VectorStoreMaintenanceService,
+    vector_maintenance,
+    clean_delete_chunks_by_doc_id,
+    batch_insert_embeddings,
+    zero_downtime_update_document,
+)
+
 __all__ = [
     "EmbeddingService",
     "embedding_service",
@@ -38,6 +46,11 @@ __all__ = [
     "FaithfulnessEvaluator",
     "faithfulness_evaluator",
     "compute_faithfulness_score",
+    "VectorStoreMaintenanceService",
+    "vector_maintenance",
+    "clean_delete_chunks_by_doc_id",
+    "batch_insert_embeddings",
+    "zero_downtime_update_document",
 ]
 
 

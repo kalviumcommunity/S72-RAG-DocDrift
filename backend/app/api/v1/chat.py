@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from app.schemas.chat import RAGQueryRequest, RAGQueryResponse
@@ -38,25 +38,30 @@ async def generate_rag_answer(request: RAGQueryRequest):
         )
 
         # Step 2: Retrieve chunks if not provided in request
-        target_versions = intent_res.target_versions or request.selected_version
+        target_versions: List[str] = (
+            intent_res.target_versions
+            if intent_res.target_versions
+            else ([request.selected_version] if request.selected_version else [])
+        )
         context_chunks = request.context_chunks
         if context_chunks is None:
             # Query vector store with targeted version filter
             context_chunks = await run_in_threadpool(
                 vector_store.query,
                 query_text=request.query,
-                version_tag=target_versions,
+                version_tag=target_versions if target_versions else None,
                 top_k=request.top_k,
                 score_threshold=request.score_threshold
             )
 
+        chosen_version: Optional[str] = request.selected_version or (target_versions[0] if target_versions else None)
 
         # Step 3: Generate grounded response using LangChain / Gemini
         result = await run_in_threadpool(
             rag_pipeline.generate,
             query=request.query,
             context_chunks=context_chunks,
-            selected_version=request.selected_version or (target_versions[0] if isinstance(target_versions, list) and target_versions else target_versions),
+            selected_version=chosen_version,
             is_comparison=intent_res.is_comparison,
             use_langchain=request.use_langchain
         )

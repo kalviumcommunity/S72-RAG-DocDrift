@@ -71,7 +71,13 @@ class DocDriftRAGPipeline:
     def _init_models(self):
         """Initializes LangChain and native Gemini models if credentials exist."""
         # Initialize LangChain LLM if available
-        if LANGCHAIN_AVAILABLE and self.gemini_api_key:
+        if (
+            LANGCHAIN_AVAILABLE
+            and self.gemini_api_key
+            and ChatGoogleGenerativeAI is not None
+            and ChatPromptTemplate is not None
+            and StrOutputParser is not None
+        ):
             try:
                 llm = ChatGoogleGenerativeAI(
                     model=self.model_name,

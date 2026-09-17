@@ -36,6 +36,7 @@ async def check_health(db: AsyncSession = Depends(get_db)) -> HealthResponse:
         overall_healthy = False
         services_status["database"] = ServiceStatus(
             status="unreachable",
+            latency_ms=None,
             details=f"PostgreSQL connection failed: {str(e)}"
         )
 
@@ -63,6 +64,7 @@ async def check_health(db: AsyncSession = Depends(get_db)) -> HealthResponse:
         # Mark as degraded if not reachable in local dev
         services_status["vector_store"] = ServiceStatus(
             status="unreachable",
+            latency_ms=None,
             details=f"ChromaDB connection failed: {str(e)}"
         )
 

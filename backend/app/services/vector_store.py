@@ -50,10 +50,12 @@ class VectorStoreService:
             logger.warning(f"ChromaDB HTTP server unavailable ({e}). Falling back to PersistentClient at {self.persist_directory}.")
 
         os.makedirs(self.persist_directory, exist_ok=True)
-        return chromadb.PersistentClient(
-            path=self.persist_directory,
-            settings=ChromaSettings(anonymized_telemetry=False)
-        )
+        if ChromaSettings is not None:
+            return chromadb.PersistentClient(
+                path=self.persist_directory,
+                settings=ChromaSettings(anonymized_telemetry=False)
+            )
+        return chromadb.PersistentClient(path=self.persist_directory)
 
     def _get_or_create_collection(self):
         """Gets or creates the vector collection configured with cosine distance."""
@@ -107,6 +109,10 @@ class VectorStoreService:
                 sanitized_metadatas.append(sanitized)
             else:
                 sanitized_metadatas.append({})
+
+        if not self.collection:
+            logger.warning("Vector collection is not initialized. Skipping chunk indexing.")
+            return 0
 
         self.collection.upsert(
             ids=ids,
@@ -219,12 +225,70 @@ class VectorStoreService:
 
     def delete_by_document_id(self, document_id: str) -> None:
         """Deletes all chunks associated with a specific document."""
+        if not self.collection:
+            logger.warning("Vector collection is not initialized. Skipping delete.")
+            return
         self.collection.delete(where={"doc_id": document_id})
         logger.info(f"Deleted all vector chunks for doc_id={document_id}")
 
     def count(self) -> int:
         """Returns total number of chunks in the collection."""
+        if not self.collection:
+            return 0
         return self.collection.count()
+
+    def clean_delete_by_doc_id(self, doc_id: str, batch_size: int = 200):
+        """Cleanly deletes all chunks belonging to doc_id with batching and verification."""
+        from app.services.vector_maintenance import vector_maintenance
+        return vector_maintenance.clean_delete_chunks_by_doc_id(
+            doc_id=doc_id,
+            batch_size=batch_size,
+            collection=self.collection
+        )
+
+    def batch_insert(
+        self,
+        chunks: Optional[List[Dict[str, Any]]] = None,
+        ids: Optional[List[str]] = None,
+        documents: Optional[List[str]] = None,
+        metadatas: Optional[List[Union[Dict[str, Any], VectorChunkMetadata]]] = None,
+        embeddings: Optional[List[List[float]]] = None,
+        batch_size: int = 100
+    ):
+        """Batch-inserts chunks and embeddings with batching and retry logic."""
+        from app.services.vector_maintenance import vector_maintenance
+        return vector_maintenance.batch_insert_embeddings(
+            chunks=chunks,
+            ids=ids,
+            documents=documents,
+            metadatas=metadatas,
+            embeddings=embeddings,
+            batch_size=batch_size,
+            collection=self.collection
+        )
+
+    def update_document_zero_downtime(
+        self,
+        doc_id: str,
+        new_chunks: Optional[List[Dict[str, Any]]] = None,
+        ids: Optional[List[str]] = None,
+        documents: Optional[List[str]] = None,
+        metadatas: Optional[List[Union[Dict[str, Any], VectorChunkMetadata]]] = None,
+        embeddings: Optional[List[List[float]]] = None,
+        batch_size: int = 100
+    ):
+        """Updates a document's chunks with zero downtime and automatic rollback on failure."""
+        from app.services.vector_maintenance import vector_maintenance
+        return vector_maintenance.zero_downtime_update_document(
+            doc_id=doc_id,
+            new_chunks=new_chunks,
+            ids=ids,
+            documents=documents,
+            metadatas=metadatas,
+            embeddings=embeddings,
+            batch_size=batch_size,
+            collection=self.collection
+        )
 
 
 vector_store = VectorStoreService()

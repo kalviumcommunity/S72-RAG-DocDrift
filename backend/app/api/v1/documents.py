@@ -93,11 +93,11 @@ UPLOAD_DIR = Path("data/uploads")
 
 @router.post("/upload", response_model=DocumentResponse, status_code=201)
 async def upload_document(
+    background_tasks: BackgroundTasks,
     workspace_id: str = Form(...),
     doc_type: DocTypeEnum = Form(DocTypeEnum.API_REFERENCE),
     version_tag: str = Form("latest"),
     file: UploadFile = File(...),
-    background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
     """

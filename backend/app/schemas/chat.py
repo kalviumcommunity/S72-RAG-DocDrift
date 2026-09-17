@@ -54,11 +54,11 @@ class StreamTokenChunk(BaseModel):
 
 class RAGQueryRequest(BaseModel):
     query: str = Field(..., min_length=1, description="The developer question or prompt")
-    selected_version: Optional[str] = Field(None, description="Active API version tag (e.g. v2.0)")
-    context_chunks: Optional[List[Dict[str, Any]]] = Field(None, description="Optional pre-retrieved context chunks")
-    top_k: int = Field(5, ge=1, le=20, description="Number of vector chunks to retrieve if not provided")
-    score_threshold: Optional[float] = Field(None, ge=0.0, le=1.0, description="Similarity threshold for vector retrieval")
-    use_langchain: bool = Field(True, description="Whether to use LangChain pipeline if available")
+    selected_version: Optional[str] = Field(default=None, description="Active API version tag (e.g. v2.0)")
+    context_chunks: Optional[List[Dict[str, Any]]] = Field(default=None, description="Optional pre-retrieved context chunks")
+    top_k: int = Field(default=5, ge=1, le=20, description="Number of vector chunks to retrieve if not provided")
+    score_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Similarity threshold for vector retrieval")
+    use_langchain: bool = Field(default=True, description="Whether to use LangChain pipeline if available")
 
 
 class RAGQueryResponse(BaseModel):
