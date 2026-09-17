@@ -4,10 +4,10 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 class WorkspaceBase(BaseModel):
-    name: str = Field(..., max_length=100, example="My API Documentation")
-    slug: str = Field(..., max_length=100, example="my-api-docs")
-    description: Optional[str] = Field(None, example="Documentation workspace for v1 and v2 APIs")
-    default_version: str = Field("latest", max_length=50, example="v2.0")
+    name: str = Field(..., max_length=100, examples=["My API Documentation"])
+    slug: str = Field(..., max_length=100, examples=["my-api-docs"])
+    description: Optional[str] = Field(None, examples=["Documentation workspace for v1 and v2 APIs"])
+    default_version: str = Field("latest", max_length=50, examples=["v2.0"])
     settings: Dict[str, Any] = Field(default_factory=dict)
 
 

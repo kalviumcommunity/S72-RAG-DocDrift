@@ -6,8 +6,8 @@ from app.schemas.chunk import CitationDetail
 
 
 class ChatMessageCreate(BaseModel):
-    content: str = Field(..., example="How do I authenticate with Bearer tokens in v2?")
-    selected_version: Optional[str] = Field(None, example="v2.0")
+    content: str = Field(..., examples=["How do I authenticate with Bearer tokens in v2?"])
+    selected_version: Optional[str] = Field(None, examples=["v2.0"])
 
 
 class ChatMessageResponse(BaseModel):
@@ -25,8 +25,8 @@ class ChatMessageResponse(BaseModel):
 
 class ChatSessionCreate(BaseModel):
     workspace_id: str
-    title: Optional[str] = Field("New Session", example="OAuth Flow Question")
-    selected_version: str = Field("latest", example="v2.0")
+    title: Optional[str] = Field("New Session", examples=["OAuth Flow Question"])
+    selected_version: str = Field("latest", examples=["v2.0"])
 
 
 class ChatSessionUpdate(BaseModel):
@@ -50,3 +50,23 @@ class StreamTokenChunk(BaseModel):
     token: Optional[str] = None
     citation: Optional[CitationDetail] = None
     finish_reason: Optional[str] = None
+
+
+class RAGQueryRequest(BaseModel):
+    query: str = Field(..., min_length=1, description="The developer question or prompt")
+    selected_version: Optional[str] = Field(None, description="Active API version tag (e.g. v2.0)")
+    context_chunks: Optional[List[Dict[str, Any]]] = Field(None, description="Optional pre-retrieved context chunks")
+    top_k: int = Field(5, ge=1, le=20, description="Number of vector chunks to retrieve if not provided")
+    score_threshold: Optional[float] = Field(None, ge=0.0, le=1.0, description="Similarity threshold for vector retrieval")
+    use_langchain: bool = Field(True, description="Whether to use LangChain pipeline if available")
+
+
+class RAGQueryResponse(BaseModel):
+    query: str = Field(..., description="The original user query")
+    answer: str = Field(..., description="Generated answer with inline [^chunk_id] citation tags")
+    citations: List[CitationDetail] = Field(default_factory=list, description="Extracted citation metadata objects")
+    cited_chunk_ids: List[str] = Field(default_factory=list, description="List of chunk IDs referenced in the response")
+    query_analysis: Dict[str, Any] = Field(default_factory=dict, description="Query intent analysis results")
+    is_grounded: bool = Field(True, description="Whether all citations correspond to provided context chunks")
+    pipeline_mode: str = Field("gemini", description="Pipeline executed: 'langchain', 'gemini', or 'fallback'")
+

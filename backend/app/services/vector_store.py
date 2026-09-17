@@ -1,8 +1,12 @@
 import os
+import importlib
 from typing import List, Dict, Any, Optional, Union
+
+# ChromaDB vector store client with graceful offline fallback
 try:
-    import chromadb
-    from chromadb.config import Settings as ChromaSettings
+    chromadb = importlib.import_module("chromadb")
+    _chroma_config = importlib.import_module("chromadb.config")
+    ChromaSettings = getattr(_chroma_config, "Settings", None)
 except ImportError:
     chromadb = None
     ChromaSettings = None
@@ -83,7 +87,10 @@ class VectorStoreService:
         sanitized_metadatas = []
         for meta in metadatas:
             if isinstance(meta, VectorChunkMetadata):
-                sanitized_metadatas.append(meta.to_chroma_dict())
+                d = meta.to_chroma_dict()
+                if "version" in d and "version_tag" not in d:
+                    d["version_tag"] = d["version"]
+                sanitized_metadatas.append(d)
             elif isinstance(meta, dict):
                 sanitized = {}
                 for k, v in meta.items():
@@ -93,6 +100,10 @@ class VectorStoreService:
                         sanitized[k] = ",".join(str(item) for item in v)
                     else:
                         sanitized[k] = str(v)
+                if "version_tag" in sanitized and "version" not in sanitized:
+                    sanitized["version"] = sanitized["version_tag"]
+                elif "version" in sanitized and "version_tag" not in sanitized:
+                    sanitized["version_tag"] = sanitized["version"]
                 sanitized_metadatas.append(sanitized)
             else:
                 sanitized_metadatas.append({})
@@ -162,12 +173,17 @@ class VectorStoreService:
         """
         Performs vector similarity search with a pre-built ChromaDB where-filter.
         """
+        if not self.collection:
+            logger.warning("Vector collection is not initialized. Returning empty search results.")
+            return []
+
         results = self.collection.query(
             query_embeddings=[query_vector],
             n_results=top_k,
             where=where_filter if where_filter else None,
             include=["documents", "metadatas", "distances", "embeddings"]
         )
+
 
         formatted_results = []
         if results and results["ids"] and len(results["ids"][0]) > 0:
@@ -190,6 +206,7 @@ class VectorStoreService:
                     "distance": round(distance, 4),
                     "similarity_score": round(similarity_score, 4),
                     "version": metadata.get("version", metadata.get("version_tag", "latest")),
+                    "version_tag": metadata.get("version_tag", metadata.get("version", "latest")),
                     "doc_type": metadata.get("doc_type", "API_REFERENCE"),
                     "section_header": metadata.get("section_header", ""),
                     "start_line": metadata.get("start_line"),
