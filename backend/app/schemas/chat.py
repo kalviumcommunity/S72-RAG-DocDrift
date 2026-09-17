@@ -68,5 +68,6 @@ class RAGQueryResponse(BaseModel):
     cited_chunk_ids: List[str] = Field(default_factory=list, description="List of chunk IDs referenced in the response")
     query_analysis: Dict[str, Any] = Field(default_factory=dict, description="Query intent analysis results")
     is_grounded: bool = Field(True, description="Whether all citations correspond to provided context chunks")
+    faithfulness_score: Optional[float] = Field(None, ge=0.0, le=100.0, description="Faithfulness percentage score (0.0 - 100.0%)")
     pipeline_mode: str = Field("gemini", description="Pipeline executed: 'langchain', 'gemini', or 'fallback'")
 
