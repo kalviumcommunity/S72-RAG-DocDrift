@@ -26,7 +26,10 @@ from app.schemas.chat import (
     ChatSessionUpdate,
     ChatSessionResponse,
     StreamTokenChunk,
+    RAGQueryRequest,
+    RAGQueryResponse,
 )
+
 from app.schemas.vector_payload import (
     VectorChunkMetadata,
     VectorFilterQuery,
@@ -64,5 +67,8 @@ __all__ = [
     "QueryIntentEnum",
     "QueryIntentRequest",
     "QueryIntentResponse",
+    "RAGQueryRequest",
+    "RAGQueryResponse",
 ]
+
 

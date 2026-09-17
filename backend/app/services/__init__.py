@@ -11,6 +11,10 @@ from app.services.query_intent import (
     QueryIntentAnalyzer,
     query_intent_analyzer,
 )
+from app.services.rag_pipeline import (
+    DocDriftRAGPipeline,
+    rag_pipeline,
+)
 
 __all__ = [
     "EmbeddingService",
@@ -24,5 +28,8 @@ __all__ = [
     "normalize_version_tag",
     "QueryIntentAnalyzer",
     "query_intent_analyzer",
+    "DocDriftRAGPipeline",
+    "rag_pipeline",
 ]
+
 

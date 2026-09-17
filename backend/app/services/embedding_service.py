@@ -5,13 +5,25 @@ import numpy as np
 from app.core.config import settings
 from app.core.logging import logger
 
+import importlib
+import warnings
+
+# Dynamic imports for optional AI providers (prevents IDE static resolution errors)
 try:
-    import google.generativeai as genai
+    modern_genai = importlib.import_module("google.genai")
+except ImportError:
+    modern_genai = None
+
+try:
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=FutureWarning)
+        genai = importlib.import_module("google.generativeai")
 except ImportError:
     genai = None
 
 try:
-    from openai import OpenAI
+    _openai_module = importlib.import_module("openai")
+    OpenAI = getattr(_openai_module, "OpenAI", None)
 except ImportError:
     OpenAI = None
 
