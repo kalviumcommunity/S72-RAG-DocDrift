@@ -2,7 +2,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 import uuid
 
-from fastapi import APIRouter, Query, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, Query, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
 import shutil
@@ -11,6 +11,7 @@ from pathlib import Path
 from app.schemas.document import DocumentResponse, DocumentDetailResponse
 from app.models.entities import DocTypeEnum, DocStatusEnum, Document
 from app.core.database import get_db
+from app.services.ingestion import process_document_pipeline
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -96,6 +97,7 @@ async def upload_document(
     doc_type: DocTypeEnum = Form(DocTypeEnum.API_REFERENCE),
     version_tag: str = Form("latest"),
     file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -142,5 +144,8 @@ async def upload_document(
     db.add(new_doc)
     await db.commit()
     await db.refresh(new_doc)
+    
+    if background_tasks:
+        background_tasks.add_task(process_document_pipeline, new_doc.id)
     
     return new_doc
