@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import type { SuggestedQuery } from "../../data/mockData";
+import { navigateTo } from "../../utils/navigation";
 
 interface SuggestedQueryCardProps {
   query: SuggestedQuery;
@@ -12,9 +13,7 @@ const SuggestedQueryCard = ({
     <button
       type="button"
       className={`query-card ${query.accent}`}
-      onClick={() => {
-        console.log("Selected:", query.question);
-      }}
+      onClick={() => navigateTo(`/chat?q=${encodeURIComponent(query.question)}`)}
     >
       <div className="query-card-top">
         <div className="query-label">
