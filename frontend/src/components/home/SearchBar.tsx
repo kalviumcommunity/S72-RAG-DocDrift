@@ -1,13 +1,13 @@
 import { ArrowRight, Command, Search } from "lucide-react";
 import { useState } from "react";
+import { navigateTo } from "../../utils/navigation";
 
 const SearchBar = () => {
   const [query, setQuery] = useState("");
 
   const handleSearch = () => {
-    if (!query.trim()) return;
-
-    console.log("Searching:", query);
+    const encodedQuery = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
+    navigateTo(`/chat${encodedQuery}`);
   };
 
   return (
@@ -38,6 +38,7 @@ const SearchBar = () => {
 
         <button
           className="search-button"
+          type="button"
           onClick={handleSearch}
         >
           <span>Search Docs</span>
