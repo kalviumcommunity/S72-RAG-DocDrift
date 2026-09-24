@@ -20,6 +20,7 @@ def test_cosine_similarity_calculation():
 
 
 def test_vector_store_indexing_and_filtering(tmp_path):
+    pytest.importorskip("chromadb")
     persist_dir = str(tmp_path / "chroma_test")
     vs = VectorStoreService(collection_name="test_collection", persist_directory=persist_dir)
 

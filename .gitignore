@@ -20,10 +20,12 @@ venv.bak/
 *.db
 postgres_data/
 chroma_data/
+chroma_db_data/
 
 # IDE / Editor
 .vscode/
 .idea/
+pyrightconfig.json
 *.swp
 *.swo
 

@@ -1,7 +1,16 @@
 import os
+import importlib
 from typing import List, Dict, Any, Optional, Union
-import chromadb
-from chromadb.config import Settings as ChromaSettings
+
+# ChromaDB vector store client with graceful offline fallback
+try:
+    chromadb = importlib.import_module("chromadb")
+    _chroma_config = importlib.import_module("chromadb.config")
+    ChromaSettings = getattr(_chroma_config, "Settings", None)
+except ImportError:
+    chromadb = None
+    ChromaSettings = None
+
 from app.core.config import settings
 from app.core.logging import logger
 from app.services.embedding_service import embedding_service, cosine_similarity
@@ -22,6 +31,10 @@ class VectorStoreService:
 
     def _init_client(self):
         """Initializes ChromaDB client (HTTP or Persistent local storage)."""
+        if chromadb is None:
+            logger.warning("chromadb package is not installed. Vector store operations will be unavailable.")
+            return None
+
         try:
             if settings.CHROMA_HOST and settings.CHROMA_PORT:
                 logger.info(f"Connecting to ChromaDB HTTP Server at {settings.chroma_base_url}...")
@@ -37,17 +50,22 @@ class VectorStoreService:
             logger.warning(f"ChromaDB HTTP server unavailable ({e}). Falling back to PersistentClient at {self.persist_directory}.")
 
         os.makedirs(self.persist_directory, exist_ok=True)
-        return chromadb.PersistentClient(
-            path=self.persist_directory,
-            settings=ChromaSettings(anonymized_telemetry=False)
-        )
+        if ChromaSettings is not None:
+            return chromadb.PersistentClient(
+                path=self.persist_directory,
+                settings=ChromaSettings(anonymized_telemetry=False)
+            )
+        return chromadb.PersistentClient(path=self.persist_directory)
 
     def _get_or_create_collection(self):
         """Gets or creates the vector collection configured with cosine distance."""
+        if not self.client:
+            return None
         return self.client.get_or_create_collection(
             name=self.collection_name,
             metadata={"hnsw:space": "cosine"}
         )
+
 
     def add_chunks(
         self,
@@ -71,7 +89,10 @@ class VectorStoreService:
         sanitized_metadatas = []
         for meta in metadatas:
             if isinstance(meta, VectorChunkMetadata):
-                sanitized_metadatas.append(meta.to_chroma_dict())
+                d = meta.to_chroma_dict()
+                if "version" in d and "version_tag" not in d:
+                    d["version_tag"] = d["version"]
+                sanitized_metadatas.append(d)
             elif isinstance(meta, dict):
                 sanitized = {}
                 for k, v in meta.items():
@@ -81,9 +102,17 @@ class VectorStoreService:
                         sanitized[k] = ",".join(str(item) for item in v)
                     else:
                         sanitized[k] = str(v)
+                if "version_tag" in sanitized and "version" not in sanitized:
+                    sanitized["version"] = sanitized["version_tag"]
+                elif "version" in sanitized and "version_tag" not in sanitized:
+                    sanitized["version_tag"] = sanitized["version"]
                 sanitized_metadatas.append(sanitized)
             else:
                 sanitized_metadatas.append({})
+
+        if not self.collection:
+            logger.warning("Vector collection is not initialized. Skipping chunk indexing.")
+            return 0
 
         self.collection.upsert(
             ids=ids,
@@ -101,7 +130,8 @@ class VectorStoreService:
         doc_type: Optional[Union[str, List[str]]] = None,
         doc_id: Optional[str] = None,
         is_deprecated: Optional[bool] = None,
-        top_k: int = 5
+        top_k: int = 5,
+        score_threshold: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """
         Searches the collection using semantic embedding with flexible metadata filters.
@@ -116,14 +146,16 @@ class VectorStoreService:
         return self.query_by_vector(
             query_vector=query_embedding,
             where_filter=where_filter,
-            top_k=top_k
+            top_k=top_k,
+            score_threshold=score_threshold
         )
 
     def search_with_filter(
         self,
         query_text: str,
         filter_query: Optional[VectorFilterQuery] = None,
-        top_k: int = 5
+        top_k: int = 5,
+        score_threshold: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """
         Searches using a strongly typed VectorFilterQuery model.
@@ -133,24 +165,31 @@ class VectorStoreService:
         return self.query_by_vector(
             query_vector=query_embedding,
             where_filter=where_filter,
-            top_k=top_k
+            top_k=top_k,
+            score_threshold=score_threshold
         )
 
     def query_by_vector(
         self,
         query_vector: List[float],
         where_filter: Optional[Dict[str, Any]] = None,
-        top_k: int = 5
+        top_k: int = 5,
+        score_threshold: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """
         Performs vector similarity search with a pre-built ChromaDB where-filter.
         """
+        if not self.collection:
+            logger.warning("Vector collection is not initialized. Returning empty search results.")
+            return []
+
         results = self.collection.query(
             query_embeddings=[query_vector],
             n_results=top_k,
             where=where_filter if where_filter else None,
             include=["documents", "metadatas", "distances", "embeddings"]
         )
+
 
         formatted_results = []
         if results and results["ids"] and len(results["ids"][0]) > 0:
@@ -163,6 +202,9 @@ class VectorStoreService:
                 # Cosine similarity = 1 - cosine distance
                 similarity_score = max(0.0, min(1.0, 1.0 - distance))
 
+                if score_threshold is not None and similarity_score < score_threshold:
+                    continue
+
                 formatted_results.append({
                     "chunk_id": chunk_id,
                     "content": doc_text,
@@ -170,6 +212,7 @@ class VectorStoreService:
                     "distance": round(distance, 4),
                     "similarity_score": round(similarity_score, 4),
                     "version": metadata.get("version", metadata.get("version_tag", "latest")),
+                    "version_tag": metadata.get("version_tag", metadata.get("version", "latest")),
                     "doc_type": metadata.get("doc_type", "API_REFERENCE"),
                     "section_header": metadata.get("section_header", ""),
                     "start_line": metadata.get("start_line"),
@@ -182,12 +225,70 @@ class VectorStoreService:
 
     def delete_by_document_id(self, document_id: str) -> None:
         """Deletes all chunks associated with a specific document."""
+        if not self.collection:
+            logger.warning("Vector collection is not initialized. Skipping delete.")
+            return
         self.collection.delete(where={"doc_id": document_id})
         logger.info(f"Deleted all vector chunks for doc_id={document_id}")
 
     def count(self) -> int:
         """Returns total number of chunks in the collection."""
+        if not self.collection:
+            return 0
         return self.collection.count()
+
+    def clean_delete_by_doc_id(self, doc_id: str, batch_size: int = 200):
+        """Cleanly deletes all chunks belonging to doc_id with batching and verification."""
+        from app.services.vector_maintenance import vector_maintenance
+        return vector_maintenance.clean_delete_chunks_by_doc_id(
+            doc_id=doc_id,
+            batch_size=batch_size,
+            collection=self.collection
+        )
+
+    def batch_insert(
+        self,
+        chunks: Optional[List[Dict[str, Any]]] = None,
+        ids: Optional[List[str]] = None,
+        documents: Optional[List[str]] = None,
+        metadatas: Optional[List[Union[Dict[str, Any], VectorChunkMetadata]]] = None,
+        embeddings: Optional[List[List[float]]] = None,
+        batch_size: int = 100
+    ):
+        """Batch-inserts chunks and embeddings with batching and retry logic."""
+        from app.services.vector_maintenance import vector_maintenance
+        return vector_maintenance.batch_insert_embeddings(
+            chunks=chunks,
+            ids=ids,
+            documents=documents,
+            metadatas=metadatas,
+            embeddings=embeddings,
+            batch_size=batch_size,
+            collection=self.collection
+        )
+
+    def update_document_zero_downtime(
+        self,
+        doc_id: str,
+        new_chunks: Optional[List[Dict[str, Any]]] = None,
+        ids: Optional[List[str]] = None,
+        documents: Optional[List[str]] = None,
+        metadatas: Optional[List[Union[Dict[str, Any], VectorChunkMetadata]]] = None,
+        embeddings: Optional[List[List[float]]] = None,
+        batch_size: int = 100
+    ):
+        """Updates a document's chunks with zero downtime and automatic rollback on failure."""
+        from app.services.vector_maintenance import vector_maintenance
+        return vector_maintenance.zero_downtime_update_document(
+            doc_id=doc_id,
+            new_chunks=new_chunks,
+            ids=ids,
+            documents=documents,
+            metadatas=metadatas,
+            embeddings=embeddings,
+            batch_size=batch_size,
+            collection=self.collection
+        )
 
 
 vector_store = VectorStoreService()

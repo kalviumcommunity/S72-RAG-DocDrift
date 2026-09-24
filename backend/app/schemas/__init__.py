@@ -26,10 +26,30 @@ from app.schemas.chat import (
     ChatSessionUpdate,
     ChatSessionResponse,
     StreamTokenChunk,
+    RAGQueryRequest,
+    RAGQueryResponse,
 )
+
 from app.schemas.vector_payload import (
     VectorChunkMetadata,
     VectorFilterQuery,
+)
+from app.schemas.intent import (
+    QueryIntentEnum,
+    QueryIntentRequest,
+    QueryIntentResponse,
+)
+from app.schemas.faithfulness import (
+    ClaimVerificationRequest,
+    ClaimVerificationResult,
+    AnswerFaithfulnessRequest,
+    AnswerFaithfulnessReport,
+)
+
+from app.schemas.maintenance import (
+    DeleteChunksResult,
+    BatchInsertResult,
+    DocumentZeroDowntimeUpdateResult,
 )
 
 __all__ = [
@@ -56,4 +76,18 @@ __all__ = [
     "StreamTokenChunk",
     "VectorChunkMetadata",
     "VectorFilterQuery",
+    "QueryIntentEnum",
+    "QueryIntentRequest",
+    "QueryIntentResponse",
+    "RAGQueryRequest",
+    "RAGQueryResponse",
+    "ClaimVerificationRequest",
+    "ClaimVerificationResult",
+    "AnswerFaithfulnessRequest",
+    "AnswerFaithfulnessReport",
+    "DeleteChunksResult",
+    "BatchInsertResult",
+    "DocumentZeroDowntimeUpdateResult",
 ]
+
+

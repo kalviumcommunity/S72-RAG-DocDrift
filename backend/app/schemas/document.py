@@ -6,11 +6,11 @@ from app.schemas.chunk import ChunkResponse
 
 
 class DocumentBase(BaseModel):
-    title: str = Field(..., max_length=255, example="Authentication API Reference")
-    source_filename: str = Field(..., max_length=255, example="auth_api_v2.md")
-    source_url: Optional[str] = Field(None, example="https://docs.example.com/v2/auth")
-    doc_type: DocTypeEnum = Field(DocTypeEnum.API_REFERENCE, example=DocTypeEnum.API_REFERENCE)
-    version_tag: str = Field("latest", max_length=50, example="v2.0")
+    title: str = Field(..., max_length=255, examples=["Authentication API Reference"])
+    source_filename: str = Field(..., max_length=255, examples=["auth_api_v2.md"])
+    source_url: Optional[str] = Field(None, examples=["https://docs.example.com/v2/auth"])
+    doc_type: DocTypeEnum = Field(DocTypeEnum.API_REFERENCE, examples=[DocTypeEnum.API_REFERENCE])
+    version_tag: str = Field("latest", max_length=50, examples=["v2.0"])
     doc_metadata: Dict[str, Any] = Field(default_factory=dict)
 
 

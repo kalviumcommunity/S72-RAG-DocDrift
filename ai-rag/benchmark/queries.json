@@ -1,0 +1,72 @@
+[
+  {
+    "id": "q1",
+    "query": "How do I authenticate with the API in v2?",
+    "expected_themes": ["Authorization header", "Bearer token", "deprecated api_key"],
+    "target_versions": ["v2.0"],
+    "intent": "feature_usage"
+  },
+  {
+    "id": "q2",
+    "query": "How did authentication change from v1 to v2?",
+    "expected_themes": ["api_key query parameter to Authorization Bearer header"],
+    "target_versions": ["v1.0", "v2.0"],
+    "intent": "comparison"
+  },
+  {
+    "id": "q3",
+    "query": "What are the parameters to create a charge in v1?",
+    "expected_themes": ["amount", "currency", "source"],
+    "target_versions": ["v1.0"],
+    "intent": "feature_usage"
+  },
+  {
+    "id": "q4",
+    "query": "I am getting a 401 Unauthorized when passing api_key in v2. Why?",
+    "expected_themes": ["api_key is deprecated in v2", "use Authorization header"],
+    "target_versions": ["v2.0"],
+    "intent": "troubleshooting"
+  },
+  {
+    "id": "q5",
+    "query": "What endpoint do I use in v2 instead of /charges?",
+    "expected_themes": ["/payments"],
+    "target_versions": ["v1.0", "v2.0"],
+    "intent": "migration"
+  },
+  {
+    "id": "q6",
+    "query": "What is the replacement for the 'source' parameter when creating a payment in v2?",
+    "expected_themes": ["payment_method"],
+    "target_versions": ["v2.0"],
+    "intent": "migration"
+  },
+  {
+    "id": "q7",
+    "query": "Does DELETE /customers permanently delete the customer in v2?",
+    "expected_themes": ["No", "soft delete", "archives"],
+    "target_versions": ["v2.0"],
+    "intent": "feature_usage"
+  },
+  {
+    "id": "q8",
+    "query": "How do I paginate results in v1?",
+    "expected_themes": ["offset-based pagination"],
+    "target_versions": ["v1.0"],
+    "intent": "feature_usage"
+  },
+  {
+    "id": "q9",
+    "query": "How do I paginate results in v2?",
+    "expected_themes": ["cursor-based pagination", "cursor parameter", "next_cursor"],
+    "target_versions": ["v2.0"],
+    "intent": "feature_usage"
+  },
+  {
+    "id": "q10",
+    "query": "What is the default limit for listing charges/payments in v1 vs v2?",
+    "expected_themes": ["10 in v1", "20 in v2"],
+    "target_versions": ["v1.0", "v2.0"],
+    "intent": "comparison"
+  }
+]
