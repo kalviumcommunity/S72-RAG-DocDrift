@@ -2,10 +2,6 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
 
-# ---------------------------------------------------------------------------
-# Response schemas (used by both service layer and HTTP API)
-# ---------------------------------------------------------------------------
-
 class DeleteChunksResult(BaseModel):
     doc_id: str = Field(..., description="Document ID whose chunks were targeted")
     deleted_count: int = Field(..., description="Number of chunks cleanly removed")
@@ -33,37 +29,40 @@ class DocumentZeroDowntimeUpdateResult(BaseModel):
     error_message: Optional[str] = Field(default=None, description="Error detail if operation failed or rolled back")
 
 
-# ---------------------------------------------------------------------------
-# Request schemas for the maintenance HTTP API
-# ---------------------------------------------------------------------------
-
 class VectorChunkInput(BaseModel):
-    """A single chunk payload for batch insertion."""
-    id: str = Field(..., description="Unique chunk ID")
-    document: str = Field(..., description="Raw chunk text content")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Chunk metadata (doc_id, version, etc.)")
-    embedding: Optional[List[float]] = Field(None, description="Pre-computed embedding vector (optional)")
-
-
-class DeleteChunksRequest(BaseModel):
-    """Request body for DELETE /maintenance/vectors/{doc_id}."""
-    batch_size: int = Field(default=200, ge=1, le=1000, description="Number of chunk IDs to delete per batch")
+    id: str = Field(..., description="Unique ID for chunk")
+    document: str = Field(..., description="Text content of chunk")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadata dictionary")
+    embedding: Optional[List[float]] = Field(default=None, description="Optional pre-computed embedding vector")
 
 
 class BatchInsertRequest(BaseModel):
-    """Request body for POST /maintenance/vectors/batch-insert."""
-    chunks: List[VectorChunkInput] = Field(..., min_length=1, description="List of chunks to index")
-    batch_size: int = Field(default=100, ge=1, le=500, description="Upsert batch size")
+    chunks: List[VectorChunkInput] = Field(..., description="Chunks to batch insert")
+    batch_size: int = Field(default=100, ge=1, le=1000, description="Chunk batch size")
+
+
+class DeleteChunksRequest(BaseModel):
+    doc_id: str = Field(..., description="Document ID to delete chunks for")
+    batch_size: int = Field(default=200, ge=1, le=1000)
 
 
 class ZeroDowntimeUpdateRequest(BaseModel):
-    """Request body for PUT /maintenance/vectors/{doc_id}."""
-    chunks: List[VectorChunkInput] = Field(..., min_length=1, description="Complete new chunk set for the document")
-    batch_size: int = Field(default=100, ge=1, le=500, description="Upsert batch size")
+    chunks: List[VectorChunkInput] = Field(..., description="New chunks for the document")
+    batch_size: int = Field(default=100, ge=1, le=1000)
 
 
 class BlueGreenReindexRequest(BaseModel):
-    """Request body for POST /maintenance/vectors/blue-green-reindex."""
-    chunks: List[VectorChunkInput] = Field(..., min_length=1, description="Full dataset for staging collection")
-    batch_size: int = Field(default=100, ge=1, le=500, description="Upsert batch size")
-    temp_collection_prefix: str = Field(default="staging", description="Prefix for the shadow staging collection name")
+    chunks: List[VectorChunkInput] = Field(..., description="Full dataset of chunks")
+    batch_size: int = Field(default=100, ge=1, le=1000)
+    temp_collection_prefix: str = Field(default="staging", description="Prefix for staging collection")
+
+
+class SyncVectorsRequest(BaseModel):
+    chunks: List[Dict[str, Any]] = Field(default_factory=list, description="List of chunk dicts with id, content, metadata")
+    batch_size: int = Field(default=100, ge=1, le=1000)
+
+
+class ZeroDowntimeSyncRequest(BaseModel):
+    document_id: str
+    new_chunks: List[Dict[str, Any]]
+    batch_size: int = Field(default=100, ge=1, le=1000)
