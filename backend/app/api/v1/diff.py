@@ -204,23 +204,51 @@ def _llm_diff(
     user_prompt = _build_drift_user_prompt(version_a, version_b, topic, chunks_a, chunks_b)
     raw_text = None
 
+    # Try Ollama
+    if app_settings.OLLAMA_BASE_URL:
+        try:
+            import urllib.request
+            url = f"{app_settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat"
+            payload = json.dumps({
+                "model": app_settings.OLLAMA_MODEL,
+                "messages": [
+                    {"role": "system", "content": VERSION_DRIFT_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "stream": False,
+                "format": "json",
+                "options": {"temperature": 0.1}
+            }).encode("utf-8")
+            headers = {"Content-Type": "application/json"}
+            if app_settings.OLLAMA_API_KEY:
+                headers["Authorization"] = f"Bearer {app_settings.OLLAMA_API_KEY}"
+
+            req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                raw_text = data.get("message", {}).get("content", "").strip()
+        except Exception as e:
+            logger.debug(f"Drift LLM (Ollama) skipped/failed: {e}")
+
     # Try modern Google GenAI
-    try:
-        modern_genai = importlib.import_module("google.genai")
-        genai_types = importlib.import_module("google.genai.types")
-        if app_settings.GEMINI_API_KEY:
-            client = modern_genai.Client(api_key=app_settings.GEMINI_API_KEY)
-            response = client.models.generate_content(
-                model="gemini-1.5-flash",
-                contents=user_prompt,
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=VERSION_DRIFT_SYSTEM_PROMPT,
-                    temperature=0.1,
-                ),
-            )
-            raw_text = response.text.strip() if response and response.text else None
-    except Exception as e:
-        logger.warning(f"Drift LLM (modern GenAI) failed: {e}")
+    if not raw_text:
+        try:
+            modern_genai = importlib.import_module("google.genai")
+            genai_types = importlib.import_module("google.genai.types")
+            if app_settings.GEMINI_API_KEY:
+                client = modern_genai.Client(api_key=app_settings.GEMINI_API_KEY)
+                response = client.models.generate_content(
+                    model="gemini-1.5-flash",
+                    contents=user_prompt,
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=VERSION_DRIFT_SYSTEM_PROMPT,
+                        temperature=0.1,
+                    ),
+                )
+                raw_text = response.text.strip() if response and response.text else None
+        except Exception as e:
+            logger.warning(f"Drift LLM (modern GenAI) failed: {e}")
+
 
     # Try legacy Gemini
     if not raw_text:

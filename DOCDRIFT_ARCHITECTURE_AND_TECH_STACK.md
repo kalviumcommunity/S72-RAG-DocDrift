@@ -43,7 +43,8 @@ Large Language Models (LLMs) frequently hallucinate outdated APIs, mixing legacy
 | **Data Validation & Schemas** | **Pydantic v2** & `pydantic-settings` | Request/response validation, environment settings, and data serialization |
 | **Relational Database & ORM** | **SQLAlchemy 2.0 (Async)**, **PostgreSQL** / **SQLite** | Workspace, Document, Chunk, and Chat Session persistence |
 | **Vector Database** | **ChromaDB** (Cosine Space HNSW) | Vector indexing with composite metadata filters (`version`, `doc_type`, `is_deprecated`) |
-| **Embeddings & AI Models** | **Google Gemini 1.5** (`gemini-1.5-pro` / `text-embedding-004`), **OpenAI** (`gpt-4o` / `text-embedding-3-small`), **Deterministic Cosine Fallback** | Text embedding generation, LLM streaming inference, and offline deterministic embeddings |
+| **Embeddings & AI Models** | **Ollama** (`llama3.2` / `nomic-embed-text`), **Google Gemini 1.5** (`gemini-1.5-flash` / `text-embedding-004`), **Deterministic Cosine Fallback** | Local & hosted text embedding generation, LLM streaming inference with custom Ollama API key / base URL, and offline deterministic embeddings |
+
 | **Streaming Protocol** | **Server-Sent Events (SSE)** (`EventSourceResponse` / `StreamingResponse`) | Token-by-token real-time streaming with trailing structured JSON citation payloads |
 | **Security & Middleware** | Custom Sliding-Window Rate Limiter, `X-Request-ID` tracing, API Key Redaction | DDoS prevention, error shielding, request correlation |
 | **Testing & Evaluation** | **Pytest**, **TestClient**, Automated 20-Query RAG Benchmark | Integration testing, version strictness evaluation, hallucination rate scoring |
@@ -150,12 +151,13 @@ When a user asks a query:
 ### 7. Dynamic LLM & Workspace Settings Management
 - **Endpoints**: `GET/PUT /api/v1/settings` and `/api/v1/settings/workspaces/{id}`
 - Allows per-workspace configuration of:
-  - LLM Provider: `gemini` vs `openai`
-  - Embedding Provider & Custom Dimensions
+  - LLM Provider: `ollama` vs `gemini` (with custom `ollama_base_url`, `ollama_api_key`, `ollama_model`)
+  - Embedding Provider (`ollama` / `nomic-embed-text`, `gemini`, `local`) & Custom Dimensions
   - Chunk Size & Overlap tuning
   - Default Version Tag
   - Workspace Member Access Roles (`admin`, `editor`, `viewer`)
-- **Security**: Stored API keys are automatically redacted (e.g., `sk-proj-••••••••abcd`) in all API responses.
+- **Security**: Stored API keys are automatically redacted in all API responses.
+
 
 ### 8. Production Security & Rate Limiting
 - **`RateLimitMiddleware`**: In-memory sliding-window rate limiter per client IP (default 120 req/min). Bypasses `/health` and `/docs`.

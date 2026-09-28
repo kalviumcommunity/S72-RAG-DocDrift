@@ -50,23 +50,32 @@ class DocDriftRAGPipeline:
     """
     RAG Generation Pipeline for DocDrift.
     Enforces strict version-aware context grounding and [^chunk_id] claim attribution.
-    Supports LangChain LCEL, native Gemini SDK, and deterministic offline fallback.
+    Supports Ollama (local/cloud), LangChain LCEL, native Gemini SDK, and deterministic offline fallback.
     """
 
     def __init__(
         self,
+        provider: Optional[str] = None,
+        ollama_base_url: Optional[str] = None,
+        ollama_api_key: Optional[str] = None,
+        ollama_model: Optional[str] = None,
         gemini_api_key: Optional[str] = None,
-        model_name: str = "gemini-1.5-flash",
+        model_name: Optional[str] = None,
         temperature: float = 0.1
     ):
+        self.provider = (provider or settings.LLM_PROVIDER).lower()
+        self.ollama_base_url = (ollama_base_url or settings.OLLAMA_BASE_URL).rstrip("/")
+        self.ollama_api_key = ollama_api_key or settings.OLLAMA_API_KEY
+        self.ollama_model = ollama_model or settings.OLLAMA_MODEL
         self.gemini_api_key = gemini_api_key or settings.GEMINI_API_KEY
-        self.model_name = model_name
+        self.model_name = model_name or (self.ollama_model if self.provider == "ollama" else "gemini-1.5-flash")
         self.temperature = temperature
         self._langchain_chain = None
         self._modern_gemini_client = None
         self._native_gemini_model = None
 
         self._init_models()
+
 
     def _init_models(self):
         """Initializes LangChain and native Gemini models if credentials exist."""
@@ -282,9 +291,45 @@ class DocDriftRAGPipeline:
         streamed = False
 
         # ------------------------------------------------------------------
-        # 1. LangChain astream (preferred)
+        # 0. Ollama streaming (if provider is ollama or ollama configured)
         # ------------------------------------------------------------------
-        if use_langchain and self._langchain_chain:
+        if self.provider == "ollama" or self.ollama_base_url:
+            try:
+                import urllib.request
+                url = f"{self.ollama_base_url}/api/chat"
+                payload = json.dumps({
+                    "model": self.ollama_model,
+                    "messages": [
+                        {"role": "system", "content": DOCDRIFT_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    "stream": True,
+                    "options": {"temperature": self.temperature}
+                }).encode("utf-8")
+                headers = {"Content-Type": "application/json"}
+                if self.ollama_api_key:
+                    headers["Authorization"] = f"Bearer {self.ollama_api_key}"
+
+                req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    for line in resp:
+                        if line:
+                            data_chunk = json.loads(line.decode("utf-8"))
+                            token = data_chunk.get("message", {}).get("content", "")
+                            if token:
+                                full_answer += token
+                                yield {"type": "token", "token": token}
+                pipeline_mode = "ollama"
+                streamed = True
+                logger.info("SSE: streamed answer via Ollama model.")
+            except Exception as e:
+                logger.warning(f"Ollama stream skipped/failed ({e}). Trying other providers.")
+                full_answer = ""
+
+        # ------------------------------------------------------------------
+        # 1. LangChain astream (preferred for Gemini)
+        # ------------------------------------------------------------------
+        if not streamed and use_langchain and self._langchain_chain:
             try:
                 async for chunk in self._langchain_chain.astream({"user_prompt": user_prompt}):
                     token = chunk if isinstance(chunk, str) else str(chunk)
@@ -296,6 +341,7 @@ class DocDriftRAGPipeline:
             except Exception as e:
                 logger.error(f"LangChain astream error: {e}. Falling back to Gemini streaming.")
                 full_answer = ""
+
 
         # ------------------------------------------------------------------
         # 2. Modern Google GenAI streaming
@@ -409,14 +455,44 @@ class DocDriftRAGPipeline:
         answer_text = None
         pipeline_mode = "fallback"
 
+        # 0. Attempt Ollama generation if provider is ollama or ollama configured
+        if not answer_text and (self.provider == "ollama" or self.ollama_base_url):
+            try:
+                import urllib.request
+                url = f"{self.ollama_base_url}/api/chat"
+                payload = json.dumps({
+                    "model": self.ollama_model,
+                    "messages": [
+                        {"role": "system", "content": DOCDRIFT_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    "stream": False,
+                    "options": {"temperature": self.temperature}
+                }).encode("utf-8")
+                headers = {"Content-Type": "application/json"}
+                if self.ollama_api_key:
+                    headers["Authorization"] = f"Bearer {self.ollama_api_key}"
+
+                req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    content = data.get("message", {}).get("content", "").strip()
+                    if content:
+                        answer_text = content
+                        pipeline_mode = "ollama"
+                        logger.info("Generated answer successfully using Ollama.")
+            except Exception as e:
+                logger.warning(f"Ollama generation skipped/failed ({e}). Trying other providers.")
+
         # 1. Attempt LangChain generation if requested and available
-        if use_langchain and self._langchain_chain:
+        if not answer_text and use_langchain and self._langchain_chain:
             try:
                 answer_text = self._langchain_chain.invoke({"user_prompt": user_prompt})
                 pipeline_mode = "langchain"
                 logger.info("Generated answer successfully using LangChain pipeline.")
             except Exception as e:
                 logger.error(f"LangChain generation error: {e}. Trying native Gemini fallback.")
+
 
         # 2. Attempt modern Google GenAI client if LangChain didn't run or failed
         if not answer_text and self._modern_gemini_client and genai_types:
