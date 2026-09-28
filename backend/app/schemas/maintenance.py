@@ -1,6 +1,10 @@
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
+
+# ---------------------------------------------------------------------------
+# Response schemas (used by both service layer and HTTP API)
+# ---------------------------------------------------------------------------
 
 class DeleteChunksResult(BaseModel):
     doc_id: str = Field(..., description="Document ID whose chunks were targeted")
@@ -27,3 +31,39 @@ class DocumentZeroDowntimeUpdateResult(BaseModel):
     active_chunk_count: int = Field(..., description="Current count of active chunks for doc_id")
     duration_ms: float = Field(..., description="Total duration in milliseconds")
     error_message: Optional[str] = Field(default=None, description="Error detail if operation failed or rolled back")
+
+
+# ---------------------------------------------------------------------------
+# Request schemas for the maintenance HTTP API
+# ---------------------------------------------------------------------------
+
+class VectorChunkInput(BaseModel):
+    """A single chunk payload for batch insertion."""
+    id: str = Field(..., description="Unique chunk ID")
+    document: str = Field(..., description="Raw chunk text content")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Chunk metadata (doc_id, version, etc.)")
+    embedding: Optional[List[float]] = Field(None, description="Pre-computed embedding vector (optional)")
+
+
+class DeleteChunksRequest(BaseModel):
+    """Request body for DELETE /maintenance/vectors/{doc_id}."""
+    batch_size: int = Field(default=200, ge=1, le=1000, description="Number of chunk IDs to delete per batch")
+
+
+class BatchInsertRequest(BaseModel):
+    """Request body for POST /maintenance/vectors/batch-insert."""
+    chunks: List[VectorChunkInput] = Field(..., min_length=1, description="List of chunks to index")
+    batch_size: int = Field(default=100, ge=1, le=500, description="Upsert batch size")
+
+
+class ZeroDowntimeUpdateRequest(BaseModel):
+    """Request body for PUT /maintenance/vectors/{doc_id}."""
+    chunks: List[VectorChunkInput] = Field(..., min_length=1, description="Complete new chunk set for the document")
+    batch_size: int = Field(default=100, ge=1, le=500, description="Upsert batch size")
+
+
+class BlueGreenReindexRequest(BaseModel):
+    """Request body for POST /maintenance/vectors/blue-green-reindex."""
+    chunks: List[VectorChunkInput] = Field(..., min_length=1, description="Full dataset for staging collection")
+    batch_size: int = Field(default=100, ge=1, le=500, description="Upsert batch size")
+    temp_collection_prefix: str = Field(default="staging", description="Prefix for the shadow staging collection name")
