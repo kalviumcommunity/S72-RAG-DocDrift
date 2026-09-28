@@ -231,6 +231,95 @@ class VectorStoreService:
         self.collection.delete(where={"doc_id": document_id})
         logger.info(f"Deleted all vector chunks for doc_id={document_id}")
 
+    def get_chunk_by_id(self, chunk_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetches a single chunk's full text and metadata from ChromaDB by its ID.
+        Returns None if the chunk does not exist or the collection is offline.
+        """
+        if not self.collection:
+            logger.warning("Vector collection is not initialized. Cannot fetch chunk by ID.")
+            return None
+        try:
+            result = self.collection.get(
+                ids=[chunk_id],
+                include=["documents", "metadatas"]
+            )
+            if not result or not result.get("ids") or len(result["ids"]) == 0:
+                return None
+            if result["ids"][0] != chunk_id:
+                return None
+
+            doc_text = result["documents"][0] if result.get("documents") else ""
+            metadata = result["metadatas"][0] if result.get("metadatas") else {}
+
+            return {
+                "chunk_id": chunk_id,
+                "content": doc_text,
+                "metadata": metadata,
+                "version": metadata.get("version", metadata.get("version_tag", "latest")),
+                "version_tag": metadata.get("version_tag", metadata.get("version", "latest")),
+                "doc_type": metadata.get("doc_type", "API_REFERENCE"),
+                "doc_id": metadata.get("doc_id", ""),
+                "file_name": metadata.get("file_name", ""),
+                "source_url": metadata.get("source_url", metadata.get("url", "")),
+                "section_header": metadata.get("section_header", ""),
+                "section_level": metadata.get("section_level"),
+                "start_line": metadata.get("start_line"),
+                "end_line": metadata.get("end_line"),
+                "chunk_index": metadata.get("chunk_index"),
+                "token_count": metadata.get("token_count"),
+                "is_deprecated": metadata.get("is_deprecated", False),
+            }
+        except Exception as e:
+            logger.error(f"Error fetching chunk_id={chunk_id} from vector store: {e}")
+            return None
+
+    def get_surrounding_chunks(
+        self,
+        doc_id: str,
+        chunk_index: int,
+        window: int = 3
+    ) -> Dict[str, Any]:
+        """
+        Retrieves up to `window` chunks before and after the given chunk_index
+        within the same document, ordered by chunk_index.
+        Returns {"before": [...], "after": [...]}.
+        """
+        if not self.collection:
+            return {"before": [], "after": []}
+        try:
+            result = self.collection.get(
+                where={"doc_id": doc_id},
+                include=["documents", "metadatas"]
+            )
+            if not result or not result.get("ids"):
+                return {"before": [], "after": []}
+
+            all_chunks = []
+            for i, cid in enumerate(result["ids"]):
+                meta = result["metadatas"][i] if result.get("metadatas") else {}
+                idx = meta.get("chunk_index", i)
+                all_chunks.append({
+                    "chunk_id": cid,
+                    "content": result["documents"][i] if result.get("documents") else "",
+                    "chunk_index": idx,
+                    "section_header": meta.get("section_header", ""),
+                    "start_line": meta.get("start_line"),
+                    "end_line": meta.get("end_line"),
+                    "version_tag": meta.get("version_tag", meta.get("version", "latest")),
+                })
+
+            all_chunks.sort(key=lambda c: c["chunk_index"])
+
+            before = [c for c in all_chunks if c["chunk_index"] < chunk_index][-window:]
+            after  = [c for c in all_chunks if c["chunk_index"] > chunk_index][:window]
+            return {"before": before, "after": after}
+
+        except Exception as e:
+            logger.error(f"Error fetching surrounding chunks for doc_id={doc_id}, index={chunk_index}: {e}")
+            return {"before": [], "after": []}
+
+
     def count(self) -> int:
         """Returns total number of chunks in the collection."""
         if not self.collection:
