@@ -1,7 +1,9 @@
-from typing import Optional, List
+import json
+from typing import AsyncGenerator, Optional, List
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.concurrency import run_in_threadpool
-from app.schemas.chat import RAGQueryRequest, RAGQueryResponse
+from fastapi.responses import StreamingResponse
+from app.schemas.chat import RAGQueryRequest, RAGQueryResponse, ChatStreamRequest
 from app.schemas.faithfulness import (
     ClaimVerificationRequest,
     ClaimVerificationResult,
@@ -15,6 +17,124 @@ from app.services.faithfulness_evaluator import faithfulness_evaluator
 from app.core.logging import logger
 
 router = APIRouter(prefix="/chat", tags=["Chat & RAG"])
+
+
+async def _stream_sse_events(request: ChatStreamRequest) -> AsyncGenerator[str, None]:
+    """
+    Internal async generator that:
+    1. Runs intent analysis + vector retrieval (same as /chat/rag).
+    2. Delegates to rag_pipeline.generate_stream for token-level streaming.
+    3. Serialises each yielded event dict as an SSE `data:` frame.
+    """
+    try:
+        # Step 1: Intent analysis
+        intent_res = await run_in_threadpool(
+            query_intent_analyzer.analyze,
+            query=request.query,
+            selected_version=request.selected_version,
+        )
+
+        # Step 2: Version resolution and vector retrieval
+        target_versions: List[str] = (
+            intent_res.target_versions
+            if intent_res.target_versions
+            else ([request.selected_version] if request.selected_version else [])
+        )
+        context_chunks = request.context_chunks
+        if context_chunks is None:
+            context_chunks = await run_in_threadpool(
+                vector_store.query,
+                query_text=request.query,
+                version_tag=target_versions if target_versions else None,
+                top_k=request.top_k,
+                score_threshold=request.score_threshold,
+            )
+
+        chosen_version: Optional[str] = request.selected_version or (
+            target_versions[0] if target_versions else None
+        )
+        is_comparison: bool = intent_res.is_comparison
+
+        # Step 3: Stream tokens from the RAG pipeline
+        async for event in rag_pipeline.generate_stream(
+            query=request.query,
+            context_chunks=context_chunks,
+            selected_version=chosen_version,
+            is_comparison=is_comparison,
+            use_langchain=request.use_langchain,
+        ):
+            # Enrich the citations event with intent metadata
+            if event.get("type") == "citations":
+                qa = event.setdefault("query_analysis", {})
+                qa.update({
+                    "intent": intent_res.intent,
+                    "target_versions": intent_res.target_versions,
+                    "detected_endpoints": intent_res.detected_endpoints,
+                    "intent_confidence": intent_res.confidence,
+                })
+
+            yield f"data: {json.dumps(event, default=str)}\n\n"
+
+        # Signal the client that the stream has ended
+        yield "data: [DONE]\n\n"
+
+    except Exception as exc:
+        logger.error(f"SSE stream error: {exc}")
+        error_event = {"type": "error", "detail": str(exc)}
+        yield f"data: {json.dumps(error_event)}\n\n"
+        yield "data: [DONE]\n\n"
+
+
+@router.post(
+    "/stream",
+    summary="Stream LLM response tokens via Server-Sent Events",
+    description=(
+        "Streams the RAG-generated answer token-by-token using SSE. "
+        "Each `data:` frame is a JSON object with `type='token'` (incremental text) "
+        "or `type='citations'` (final grounding payload). "
+        "The stream ends with `data: [DONE]`."
+    ),
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "content": {"text/event-stream": {}},
+            "description": "SSE stream of token chunks followed by a citations payload",
+        }
+    },
+)
+async def stream_rag_answer(request: ChatStreamRequest):
+    """
+    POST /api/v1/chat/stream
+
+    Request body (JSON):
+    ```json
+    {
+      "query": "How does OAuth2 work in v2?",
+      "selected_version": "v2.0",   // optional
+      "top_k": 5,                   // optional (1-20)
+      "score_threshold": 0.6,       // optional (0.0-1.0)
+      "use_langchain": true         // optional
+    }
+    ```
+
+    SSE event shapes streamed back:
+    - `data: {"type":"token","token":"<text chunk>"}` — incremental answer text
+    - `data: {"type":"citations","citations":[...],...}` — final metadata payload
+    - `data: {"type":"error","detail":"<msg>"}` — on error
+    - `data: [DONE]` — stream termination sentinel
+    """
+    if not request.query or not request.query.strip():
+        raise HTTPException(status_code=400, detail="Query string cannot be empty")
+
+    return StreamingResponse(
+        _stream_sse_events(request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",   # Disable Nginx buffering
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.post("/rag", response_model=RAGQueryResponse)
