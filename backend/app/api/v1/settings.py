@@ -29,10 +29,11 @@ router = APIRouter(prefix="/settings", tags=["Settings"])
 # In-memory store (replace with DB persistence when ready)
 # ---------------------------------------------------------------------------
 _global_settings: Dict[str, Any] = {
-    "default_llm_provider":        app_settings.EMBEDDING_PROVIDER,
+    "default_llm_provider":        app_settings.LLM_PROVIDER,
     "default_embedding_provider":  app_settings.EMBEDDING_PROVIDER,
+    "ollama_base_url":             app_settings.OLLAMA_BASE_URL,
+    "ollama_api_key":              app_settings.OLLAMA_API_KEY or "",
     "gemini_api_key":              app_settings.GEMINI_API_KEY or "",
-    "openai_api_key":              app_settings.OPENAI_API_KEY or "",
     "rate_limit_per_minute":       60,
 }
 
@@ -57,8 +58,9 @@ async def get_global_settings() -> GlobalSettingsResponse:
     return GlobalSettingsResponse(
         default_llm_provider=_global_settings["default_llm_provider"],
         default_embedding_provider=_global_settings["default_embedding_provider"],
+        ollama_base_url=_global_settings.get("ollama_base_url", "http://localhost:11434"),
+        ollama_api_key_set=_redact_key(_global_settings.get("ollama_api_key", "")),
         gemini_api_key_set=_redact_key(_global_settings.get("gemini_api_key", "")),
-        openai_api_key_set=_redact_key(_global_settings.get("openai_api_key", "")),
         rate_limit_per_minute=_global_settings.get("rate_limit_per_minute", 60),
     )
 
@@ -73,7 +75,7 @@ async def update_global_settings(update: GlobalSettingsUpdate) -> GlobalSettings
     Updates global server settings. API keys are stored but never returned.
     Validates that provider values are supported before saving.
     """
-    valid_providers = {"gemini", "openai", "anthropic", "local"}
+    valid_providers = {"ollama", "gemini", "anthropic", "local"}
 
     if update.default_llm_provider and update.default_llm_provider not in valid_providers:
         raise HTTPException(
@@ -117,9 +119,11 @@ async def get_workspace_settings(workspace_id: str) -> WorkspaceSettingsResponse
         workspace_id=workspace_id,
         llm_provider=ws.llm.provider,
         llm_model=ws.llm.model_name,
+        llm_base_url=ws.llm.base_url,
         llm_api_key_set=_redact_key(ws.llm.api_key or ""),
         embedding_provider=ws.embedding.provider,
         embedding_model=ws.embedding.model_name,
+        embedding_base_url=ws.embedding.base_url,
         embedding_api_key_set=_redact_key(ws.embedding.api_key or ""),
         default_version=ws.default_version,
         max_chunk_size=ws.chunking.max_chunk_size,
@@ -128,6 +132,7 @@ async def get_workspace_settings(workspace_id: str) -> WorkspaceSettingsResponse
         members=ws.members,
         metadata=ws.metadata,
     )
+
 
 
 @router.put(

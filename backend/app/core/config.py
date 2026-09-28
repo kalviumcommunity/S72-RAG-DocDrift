@@ -54,11 +54,16 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIRECTORY: str = "./chroma_db_data"
     CHROMA_COLLECTION_NAME: str = "docdrift_chunks"
 
-    # AI & Embeddings
+    # AI & Embeddings (Ollama, Gemini, Local Fallback)
     GEMINI_API_KEY: Optional[str] = None
-    OPENAI_API_KEY: Optional[str] = None
-    EMBEDDING_PROVIDER: str = "gemini"  # "gemini", "openai", "local_fallback"
-    EMBEDDING_MODEL: str = "models/text-embedding-004"
+    OLLAMA_API_KEY: Optional[str] = None
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2"
+    OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
+    LLM_PROVIDER: str = "ollama"  # "ollama", "gemini", "local_fallback"
+    EMBEDDING_PROVIDER: str = "ollama"  # "ollama", "gemini", "local_fallback"
+    EMBEDDING_MODEL: str = "nomic-embed-text"
+
 
     @property
     def chroma_base_url(self) -> str:

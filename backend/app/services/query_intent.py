@@ -74,12 +74,17 @@ class QueryIntentAnalyzer:
     def __init__(
         self,
         gemini_api_key: Optional[str] = None,
-        openai_api_key: Optional[str] = None,
-        default_model: Optional[str] = None
+        ollama_api_key: Optional[str] = None,
+        ollama_base_url: Optional[str] = None,
+        ollama_model: Optional[str] = None,
+        default_model: Optional[str] = None,
+        **kwargs
     ):
         self.gemini_api_key = gemini_api_key or settings.GEMINI_API_KEY
-        self.openai_api_key = openai_api_key or settings.OPENAI_API_KEY
-        self.llm_provider = settings.EMBEDDING_PROVIDER.lower() if hasattr(settings, "EMBEDDING_PROVIDER") else "gemini"
+        self.ollama_api_key = ollama_api_key or settings.OLLAMA_API_KEY
+        self.ollama_base_url = (ollama_base_url or settings.OLLAMA_BASE_URL).rstrip("/")
+        self.ollama_model = ollama_model or settings.OLLAMA_MODEL
+        self.llm_provider = settings.LLM_PROVIDER.lower() if hasattr(settings, "LLM_PROVIDER") else "ollama"
         self.default_model = default_model
 
         # Configure Gemini LLM client if available
@@ -92,14 +97,6 @@ class QueryIntentAnalyzer:
             except Exception as e:
                 logger.warning(f"Failed to initialize Gemini LLM client: {e}")
 
-        # Configure OpenAI LLM client if available
-        self._openai_client = None
-        if self.openai_api_key and OpenAI:
-            try:
-                self._openai_client = OpenAI(api_key=self.openai_api_key)
-                logger.info("QueryIntentAnalyzer initialized with OpenAI client.")
-            except Exception as e:
-                logger.warning(f"Failed to initialize OpenAI client: {e}")
 
     def normalize_version(
         self,
@@ -325,18 +322,28 @@ class QueryIntentAnalyzer:
             except Exception as e:
                 logger.error(f"Gemini LLM intent classification failed: {e}. Falling back to regex.")
 
-        # 2. Try OpenAI
-        if self._openai_client:
-            try:
-                completion = self._openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": query}
-                    ],
-                    response_format={"type": "json_object"}
-                )
-                raw_text = completion.choices[0].message.content or "{}"
+        # 2. Try Ollama
+        try:
+            import urllib.request
+            url = f"{self.ollama_base_url}/api/chat"
+            payload = json.dumps({
+                "model": self.ollama_model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": query}
+                ],
+                "stream": False,
+                "format": "json",
+                "options": {"temperature": 0.1}
+            }).encode("utf-8")
+            headers = {"Content-Type": "application/json"}
+            if self.ollama_api_key:
+                headers["Authorization"] = f"Bearer {self.ollama_api_key}"
+
+            req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data_resp = json.loads(resp.read().decode("utf-8"))
+                raw_text = data_resp.get("message", {}).get("content", "{}")
                 data = json.loads(raw_text)
                 return QueryIntentResponse(
                     query=query,
@@ -348,13 +355,14 @@ class QueryIntentAnalyzer:
                     analysis_mode="llm",
                     explanation=data.get("explanation")
                 )
-            except Exception as e:
-                logger.error(f"OpenAI LLM intent classification failed: {e}. Falling back to regex.")
+        except Exception as e:
+            logger.debug(f"Ollama intent query skipped/failed ({e}). Falling back to regex.")
 
         # 3. Fallback to regex engine if no LLM was successful
         regex_resp = self.analyze_regex(query, selected_version, available_versions)
         regex_resp.analysis_mode = "fallback"
         return regex_resp
+
 
     def analyze(
         self,
@@ -383,8 +391,9 @@ class QueryIntentAnalyzer:
         regex_result = self.analyze_regex(query, selected_version, available_versions)
 
         # If regex result has clear explicit signals or LLM clients are not configured, return regex
-        if not (self._gemini_client or self._openai_client):
+        if not (self._gemini_client or self.ollama_base_url):
             return regex_result
+
 
         # If regex detected unambiguous explicit multiple versions or single version with high confidence, use it
         if regex_result.confidence >= 0.95 and regex_result.target_versions:

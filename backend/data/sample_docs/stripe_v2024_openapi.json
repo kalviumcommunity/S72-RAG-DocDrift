@@ -1,0 +1,66 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Stripe API",
+    "version": "2024-04-15",
+    "description": "The Stripe REST API for online payments, billing, and financial operations."
+  },
+  "paths": {
+    "/v1/payment_intents": {
+      "post": {
+        "summary": "Create a PaymentIntent",
+        "description": "Creates a PaymentIntent object for managing payment lifecycle and SCA 3DS validation.",
+        "parameters": [
+          {
+            "name": "amount",
+            "in": "formData",
+            "required": true,
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "currency",
+            "in": "formData",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "payment_method",
+            "in": "formData",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful PaymentIntent creation"
+          }
+        }
+      }
+    },
+    "/v1/refunds": {
+      "post": {
+        "summary": "Create a Refund",
+        "description": "Refunds a charge or payment intent previously created.",
+        "parameters": [
+          {
+            "name": "payment_intent",
+            "in": "formData",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "amount",
+            "in": "formData",
+            "required": false,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Refund created successfully"
+          }
+        }
+      }
+    }
+  }
+}

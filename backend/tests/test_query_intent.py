@@ -143,8 +143,9 @@ def test_llm_fallback_resilience():
     """
     Ensures analyzer falls back cleanly to regex when no LLM API keys are provided.
     """
-    analyzer = QueryIntentAnalyzer(gemini_api_key=None, openai_api_key=None)
+    analyzer = QueryIntentAnalyzer(gemini_api_key=None, ollama_api_key=None, ollama_base_url="http://invalid-host:9999")
     res = analyzer.analyze("Compare authentication in v1 and v2", mode="llm")
     assert res.is_comparison is True
     assert set(res.target_versions) == {"v1.0", "v2.0"}
     assert res.analysis_mode in ["regex", "fallback"]
+
