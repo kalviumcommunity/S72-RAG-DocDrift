@@ -47,9 +47,29 @@ class ChatSessionResponse(BaseModel):
 
 
 class StreamTokenChunk(BaseModel):
-    token: Optional[str] = None
-    citation: Optional[CitationDetail] = None
+    """Single SSE data frame – either a token chunk or the final citations payload."""
+    type: str = Field("token", description="'token' | 'citations' | 'error'")
+    token: Optional[str] = Field(None, description="Incremental text token (type='token')")
+    citations: Optional[List[CitationDetail]] = Field(None, description="Final citation list (type='citations')")
+    cited_chunk_ids: Optional[List[str]] = None
+    is_grounded: Optional[bool] = None
+    faithfulness_score: Optional[float] = Field(None, ge=0.0, le=100.0)
+    pipeline_mode: Optional[str] = None
+    query_analysis: Optional[Dict[str, Any]] = None
     finish_reason: Optional[str] = None
+    detail: Optional[str] = Field(None, description="Error message (type='error')")
+
+
+class ChatStreamRequest(BaseModel):
+    """Request body for POST /api/v1/chat/stream."""
+    query: str = Field(..., min_length=1, description="Developer question or prompt")
+    selected_version: Optional[str] = Field(None, description="Active API version tag (e.g. v2.0)")
+    context_chunks: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Optional pre-retrieved context chunks"
+    )
+    top_k: int = Field(default=5, ge=1, le=20, description="Chunks to retrieve if none provided")
+    score_threshold: Optional[float] = Field(None, ge=0.0, le=1.0, description="Vector similarity threshold")
+    use_langchain: bool = Field(default=True, description="Prefer LangChain LCEL pipeline")
 
 
 class RAGQueryRequest(BaseModel):

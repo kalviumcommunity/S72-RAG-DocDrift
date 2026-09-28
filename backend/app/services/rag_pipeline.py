@@ -252,6 +252,141 @@ class DocDriftRAGPipeline:
             "fabricated_ids": fabricated_ids
         }
 
+    async def generate_stream(
+        self,
+        query: str,
+        context_chunks: List[Dict[str, Any]],
+        selected_version: Optional[str] = None,
+        is_comparison: bool = False,
+        use_langchain: bool = True,
+    ):
+        """
+        Async generator that streams LLM token chunks followed by a final citations payload.
+
+        Yields dicts with one of three shapes:
+          • {"type": "token",     "token": "<text>"}
+          • {"type": "citations", "citations": [...], "cited_chunk_ids": [...],
+             "is_grounded": bool, "faithfulness_score": float|None,
+             "pipeline_mode": str}
+          • {"type": "error",     "detail": "<message>"}
+        """
+        user_prompt = build_rag_user_prompt(
+            query=query,
+            chunks=context_chunks,
+            selected_version=selected_version,
+            is_comparison=is_comparison,
+        )
+
+        full_answer = ""
+        pipeline_mode = "fallback"
+        streamed = False
+
+        # ------------------------------------------------------------------
+        # 1. LangChain astream (preferred)
+        # ------------------------------------------------------------------
+        if use_langchain and self._langchain_chain:
+            try:
+                async for chunk in self._langchain_chain.astream({"user_prompt": user_prompt}):
+                    token = chunk if isinstance(chunk, str) else str(chunk)
+                    full_answer += token
+                    yield {"type": "token", "token": token}
+                pipeline_mode = "langchain"
+                streamed = True
+                logger.info("SSE: streamed answer via LangChain pipeline.")
+            except Exception as e:
+                logger.error(f"LangChain astream error: {e}. Falling back to Gemini streaming.")
+                full_answer = ""
+
+        # ------------------------------------------------------------------
+        # 2. Modern Google GenAI streaming
+        # ------------------------------------------------------------------
+        if not streamed and self._modern_gemini_client and genai_types:
+            try:
+                stream = self._modern_gemini_client.models.generate_content_stream(
+                    model=self.model_name,
+                    contents=user_prompt,
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=DOCDRIFT_SYSTEM_PROMPT,
+                        temperature=self.temperature,
+                    ),
+                )
+                for chunk in stream:
+                    token = getattr(chunk, "text", None) or ""
+                    if token:
+                        full_answer += token
+                        yield {"type": "token", "token": token}
+                pipeline_mode = "gemini"
+                streamed = True
+                logger.info("SSE: streamed answer via modern Google GenAI client.")
+            except Exception as e:
+                logger.error(f"Modern GenAI stream error: {e}. Trying legacy Gemini.")
+                full_answer = ""
+
+        # ------------------------------------------------------------------
+        # 3. Legacy Gemini streaming
+        # ------------------------------------------------------------------
+        if not streamed and self._native_gemini_model:
+            try:
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=FutureWarning)
+                    stream = self._native_gemini_model.generate_content(
+                        user_prompt, stream=True
+                    )
+                for chunk in stream:
+                    token = getattr(chunk, "text", None) or ""
+                    if token:
+                        full_answer += token
+                        yield {"type": "token", "token": token}
+                pipeline_mode = "gemini"
+                streamed = True
+                logger.info("SSE: streamed answer via legacy Gemini model.")
+            except Exception as e:
+                logger.error(f"Legacy Gemini stream error: {e}. Using deterministic fallback.")
+                full_answer = ""
+
+        # ------------------------------------------------------------------
+        # 4. Deterministic word-by-word fallback
+        # ------------------------------------------------------------------
+        if not streamed:
+            fallback_text = self._generate_fallback_response(
+                query=query,
+                chunks=context_chunks,
+                selected_version=selected_version,
+                is_comparison=is_comparison,
+            )
+            for word in fallback_text.split(" "):
+                token = word + " "
+                full_answer += token
+                yield {"type": "token", "token": token}
+            pipeline_mode = "fallback"
+            logger.info("SSE: sent answer via deterministic fallback generator.")
+
+        # ------------------------------------------------------------------
+        # 5. Final citations payload
+        # ------------------------------------------------------------------
+        citations = self.extract_citations(full_answer, context_chunks)
+        grounding_info = self.validate_grounding(full_answer, context_chunks)
+
+        from app.services.faithfulness_evaluator import faithfulness_evaluator
+        faithfulness_report = faithfulness_evaluator.verify_answer(full_answer, context_chunks)
+
+        yield {
+            "type": "citations",
+            "citations": [c.model_dump() for c in citations],
+            "cited_chunk_ids": grounding_info["cited_ids"],
+            "is_grounded": grounding_info["is_grounded"],
+            "faithfulness_score": faithfulness_report.overall_score,
+            "pipeline_mode": pipeline_mode,
+            "query_analysis": {
+                "selected_version": selected_version,
+                "is_comparison": is_comparison,
+                "chunks_count": len(context_chunks),
+                "claims_count": faithfulness_report.total_claims,
+                "faithful_claims_count": faithfulness_report.faithful_claims_count,
+            },
+        }
+
     def generate(
         self,
         query: str,
