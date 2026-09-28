@@ -13,6 +13,10 @@ PR-4 : https://github.com/kalviumcommunity/S72-RAG-DocDrift/pull/7
 
 PR-5 : https://github.com/kalviumcommunity/S72-RAG-DocDrift/pull/9
 
+PR-6 : https://github.com/kalviumcommunity/S72-RAG-DocDrift/pull/11
+
+PR-7 : https://github.com/kalviumcommunity/S72-RAG-DocDrift/pull/12
+
 
 
 PRANATHI :
@@ -29,3 +33,7 @@ BHUMIT :
 PR-1 : https://github.com/kalviumcommunity/S72-RAG-DocDrift/pull/4
 
 PR-2 : https://github.com/kalviumcommunity/S72-RAG-DocDrift/pull/8
+
+PR-3 : https://github.com/kalviumcommunity/S72-RAG-DocDrift/pull/10
+
+PR-4 : https://github.com/kalviumcommunity/S72-RAG-DocDrift/pull/13
