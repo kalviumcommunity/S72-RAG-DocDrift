@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.core.database import engine
 from app.core.init_db import init_database
+from app.core.middleware import apply_security_middleware
 
 
 @asynccontextmanager
@@ -43,6 +44,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security middleware: rate limiting, error handling, request IDs
+apply_security_middleware(app, rate_limit=60, rate_window=60)
+
 
 # Include API Router under /api/v1
 app.include_router(api_router, prefix=settings.API_V1_STR)
